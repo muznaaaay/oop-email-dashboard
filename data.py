@@ -32,7 +32,7 @@ def load_campaign_dashboard():
     """Load Campaign Dashboard tab into a DataFrame."""
     gc = _get_client()
     sh = gc.open_by_key(st.secrets["dashboard_sheet_id"])
-    ws = sh.worksheet("Campaign Dashboard")
+    ws = sh.get_worksheet_by_id(0)  # "Campaign Dashboard"
     rows = ws.get_all_values()
     if len(rows) < 2:
         return pd.DataFrame()
@@ -59,7 +59,7 @@ def load_engagement_detail():
     """Load Engagement Detail tab into a DataFrame."""
     gc = _get_client()
     sh = gc.open_by_key(st.secrets["dashboard_sheet_id"])
-    ws = sh.worksheet("Engagement Detail")
+    ws = sh.get_worksheet_by_id(549973242)  # "Engagement Detail"
     rows = ws.get_all_values()
     if len(rows) < 2:
         return pd.DataFrame()
@@ -80,7 +80,7 @@ def load_click_detail():
     """Load Click Detail tab into a DataFrame."""
     gc = _get_client()
     sh = gc.open_by_key(st.secrets["dashboard_sheet_id"])
-    ws = sh.worksheet("Click Detail")
+    ws = sh.get_worksheet_by_id(1560513873)  # "Click Detail"
     rows = ws.get_all_values()
     if len(rows) < 2:
         return pd.DataFrame()
@@ -107,7 +107,7 @@ def load_import_checker():
     """Load Check Master tab into a DataFrame."""
     gc = _get_client()
     sh = gc.open_by_key(st.secrets["import_checker_sheet_id"])
-    ws = sh.worksheet("Check Master")
+    ws = sh.get_worksheet_by_id(0)  # "Check Master"
     rows = ws.get_all_values()
     if len(rows) < 2:
         return pd.DataFrame()
@@ -140,6 +140,56 @@ def load_import_checker():
 
 
 @st.cache_data(ttl=300)
+def load_newsletter_dashboard():
+    """Load Newsletter Dashboard tab into a DataFrame."""
+    gc = _get_client()
+    sh = gc.open_by_key(st.secrets["dashboard_sheet_id"])
+    ws = sh.get_worksheet_by_id(1533589416)  # "Newsletter Dashboard"
+    rows = ws.get_all_values()
+    if len(rows) < 2:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows[1:], columns=rows[0])
+
+    for col in ["Sent", "Delivered", "Unique Opens", "Total Opens",
+                 "Unique Clicks", "Unsubscribes", "Spam Reports"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+
+    for col in ["Delivery Rate %", "Open Rate %", "Click Rate %",
+                 "CTOR %", "Unsub Rate %"]:
+        if col in df.columns:
+            df[col] = df[col].str.replace("%", "").str.strip()
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    return df
+
+
+@st.cache_data(ttl=300)
+def load_newsletter_clicks():
+    """Load Newsletter Click Detail tab into a DataFrame."""
+    gc = _get_client()
+    sh = gc.open_by_key(st.secrets["dashboard_sheet_id"])
+    ws = sh.get_worksheet_by_id(1801678154)  # "Newsletter Click Detail"
+    rows = ws.get_all_values()
+    if len(rows) < 2:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows[1:], columns=rows[0])
+
+    for col in ["Unique Clicks", "Total Clicks", "Unique Verified Clicks"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+
+    for col in ["Click Rate %", "Verified Click Rate %"]:
+        if col in df.columns:
+            df[col] = df[col].str.replace("%", "").str.strip()
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    return df
+
+
+@st.cache_data(ttl=300)
 def load_auth_expiry():
     """Read JWT auth expiry date from cell P1 of Campaign Dashboard.
 
@@ -148,7 +198,7 @@ def load_auth_expiry():
     try:
         gc = _get_client()
         sh = gc.open_by_key(st.secrets["dashboard_sheet_id"])
-        ws = sh.worksheet("Campaign Dashboard")
+        ws = sh.get_worksheet_by_id(0)  # "Campaign Dashboard"
         expiry_str = ws.acell("P1").value
         if not expiry_str or not expiry_str.strip():
             return None, None
@@ -166,7 +216,7 @@ def update_segment_name(campaign_name, segment_name):
     """Write segment name to col L of Engagement Detail for a specific campaign."""
     gc = _get_client()
     sh = gc.open_by_key(st.secrets["dashboard_sheet_id"])
-    ws = sh.worksheet("Engagement Detail")
+    ws = sh.get_worksheet_by_id(549973242)  # "Engagement Detail"
     rows = ws.get_all_values()
 
     # Find the row for this campaign (col A = campaign name)
