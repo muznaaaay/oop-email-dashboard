@@ -615,21 +615,42 @@ elif page == "Newsletter":
             )
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
+            # Pagination for bar charts
+            NL_PER_PAGE = 5
+            total_nl = len(chart_df)
+            total_nl_pages = max(1, (total_nl + NL_PER_PAGE - 1) // NL_PER_PAGE)
+
+            if total_nl_pages > 1:
+                pg_cols = st.columns([4, 1])
+                with pg_cols[1]:
+                    nl_page = st.selectbox(
+                        "Page", range(1, total_nl_pages + 1),
+                        format_func=lambda x: f"Page {x}/{total_nl_pages}",
+                        key="nl_chart_page", label_visibility="collapsed",
+                    )
+            else:
+                nl_page = 1
+
+            nl_start = (nl_page - 1) * NL_PER_PAGE
+            nl_end = min(nl_start + NL_PER_PAGE, total_nl)
+            page_cdf = chart_df.iloc[nl_start:nl_end].copy()
+
             # Re-read depth
-            if chart_df["Unique Opens"].sum() > 0:
-                chart_df["Opens per Reader"] = (chart_df["Total Opens"] / chart_df["Unique Opens"]).round(2)
+            if page_cdf["Unique Opens"].sum() > 0:
+                page_cdf["Opens per Reader"] = (page_cdf["Total Opens"] / page_cdf["Unique Opens"]).round(2)
                 fig2 = go.Figure()
                 fig2.add_trace(go.Bar(
-                    x=chart_df["Campaign Name"].str[:40], y=chart_df["Unique Opens"],
+                    x=page_cdf["Campaign Name"].str[:40], y=page_cdf["Unique Opens"],
                     name="Unique Opens", marker=dict(color=OOP_TEAL, cornerradius=4),
                 ))
                 fig2.add_trace(go.Scatter(
-                    x=chart_df["Campaign Name"].str[:40], y=chart_df["Opens per Reader"],
+                    x=page_cdf["Campaign Name"].str[:40], y=page_cdf["Opens per Reader"],
                     name="Opens per Reader", yaxis="y2", mode="lines+markers",
                     line=dict(color=OOP_YELLOW, width=2), marker=dict(size=7),
                 ))
                 plotly_dark_layout(fig2,
-                    title="Unique Opens & Re-Read Depth", height=380, xaxis_tickangle=-20,
+                    title=f"Unique Opens & Re-Read Depth ({nl_start+1}–{nl_end} of {total_nl})",
+                    height=380, xaxis_tickangle=-20,
                     yaxis=dict(title="Unique Opens", gridcolor="rgba(255,255,255,0.05)", fixedrange=True),
                     yaxis2=dict(title="Opens / Reader", overlaying="y", side="right",
                                 gridcolor="rgba(0,0,0,0)", fixedrange=True),
@@ -639,16 +660,17 @@ elif page == "Newsletter":
             # Unsub trend
             fig3 = go.Figure()
             fig3.add_trace(go.Bar(
-                x=chart_df["Campaign Name"].str[:40], y=chart_df["Unsubscribes"],
+                x=page_cdf["Campaign Name"].str[:40], y=page_cdf["Unsubscribes"],
                 name="Unsubscribes", marker=dict(color=OOP_PINK, cornerradius=4),
             ))
             fig3.add_trace(go.Scatter(
-                x=chart_df["Campaign Name"].str[:40], y=chart_df["Unsub Rate %"],
+                x=page_cdf["Campaign Name"].str[:40], y=page_cdf["Unsub Rate %"],
                 name="Unsub Rate %", yaxis="y2", mode="lines+markers",
                 line=dict(color=OOP_YELLOW, width=2), marker=dict(size=7),
             ))
             plotly_dark_layout(fig3,
-                title="Unsubscribes by Campaign", height=350, xaxis_tickangle=-20,
+                title=f"Unsubscribes by Campaign ({nl_start+1}–{nl_end} of {total_nl})",
+                height=350, xaxis_tickangle=-20,
                 yaxis=dict(title="Count", gridcolor="rgba(255,255,255,0.05)", fixedrange=True),
                 yaxis2=dict(title="Unsub Rate %", overlaying="y", side="right",
                             gridcolor="rgba(0,0,0,0)", fixedrange=True),
