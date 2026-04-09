@@ -183,7 +183,7 @@ with st.sidebar:
 
     page = st.radio(
         "Navigate",
-        ["Campaign Overview", "Newsletter", "Engagement Detail", "Click Detail", "Import Audit"],
+        ["Campaign Overview", "Engagement Detail", "Click Detail", "Newsletter", "Import Audit"],
         label_visibility="collapsed",
     )
 
@@ -538,7 +538,7 @@ if page == "Campaign Overview":
 
 
 # ============================================================
-# PAGE 2: Newsletter
+# PAGE 4: Newsletter
 # ============================================================
 elif page == "Newsletter":
     st.markdown('<div class="page-header">Newsletter Dashboard</div>', unsafe_allow_html=True)
@@ -550,241 +550,304 @@ elif page == "Newsletter":
         st.warning("No newsletter data found. Dashboard may not have run yet.")
         st.stop()
 
-    # KPI cards — row 1
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
-        metric_card("Campaigns", len(df))
-    with c2:
-        metric_card("Avg Open Rate", f"{df['Open Rate %'].mean():.1f}%", "teal")
-    with c3:
-        metric_card("Avg Click Rate", f"{df['Click Rate %'].mean():.1f}%", "pink")
-    with c4:
-        metric_card("Avg CTOR", f"{df['CTOR %'].mean():.1f}%", "yellow")
-    with c5:
-        avg_unsub = df["Unsub Rate %"].mean()
-        metric_card("Avg Unsub Rate", f"{avg_unsub:.2f}%")
+    click_df = data.load_newsletter_clicks()
 
-    # KPI cards — row 2
-    st.markdown("")
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        metric_card("Total Sent", f"{df['Sent'].sum():,}", "teal")
-    with c2:
-        metric_card("Total Delivered", f"{df['Delivered'].sum():,}")
-    with c3:
-        metric_card("Total Opens", f"{df['Total Opens'].sum():,}", "pink")
-    with c4:
-        metric_card("Total Unsubs", f"{df['Unsubscribes'].sum():,}", "yellow")
+    # --- Campaign Selector ---
+    campaign_options = ["All Campaigns"] + df["Campaign Name"].tolist()
+    selected_campaign = st.selectbox("Select Campaign", campaign_options, key="nl_campaign")
 
-    # --- Open Rate & Click Rate Trend (line chart) ---
-    chart_df = df[df["Send Date"] != ""].copy()
-    if not chart_df.empty:
-        chart_df["Send Date"] = pd.to_datetime(chart_df["Send Date"], errors="coerce")
-        chart_df = chart_df.dropna(subset=["Send Date"]).sort_values("Send Date")
+    is_all = selected_campaign == "All Campaigns"
 
-        st.markdown('<div class="section-header">Performance Trends</div>', unsafe_allow_html=True)
+    if is_all:
+        # ===================== ALL CAMPAIGNS VIEW =====================
+        # KPI cards — row 1
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            metric_card("Campaigns", len(df))
+        with c2:
+            metric_card("Avg Open Rate", f"{df['Open Rate %'].mean():.1f}%", "teal")
+        with c3:
+            metric_card("Avg Click Rate", f"{df['Click Rate %'].mean():.1f}%", "pink")
+        with c4:
+            metric_card("Avg CTOR", f"{df['CTOR %'].mean():.1f}%", "yellow")
+        with c5:
+            metric_card("Avg Unsub Rate", f"{df['Unsub Rate %'].mean():.2f}%")
 
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=chart_df["Send Date"], y=chart_df["Open Rate %"],
-            name="Open Rate %", mode="lines+markers",
-            line=dict(color=OOP_TEAL, width=2.5),
-            marker=dict(size=8),
-        ))
-        fig.add_trace(go.Scatter(
-            x=chart_df["Send Date"], y=chart_df["Click Rate %"],
-            name="Click Rate %", mode="lines+markers",
-            line=dict(color=OOP_PINK, width=2.5),
-            marker=dict(size=8),
-        ))
-        fig.add_trace(go.Scatter(
-            x=chart_df["Send Date"], y=chart_df["CTOR %"],
-            name="CTOR %", mode="lines+markers",
-            line=dict(color=OOP_YELLOW, width=2, dash="dot"),
-            marker=dict(size=6),
-        ))
-        plotly_dark_layout(fig,
-            title="Open Rate / Click Rate / CTOR Over Time",
-            yaxis_title="Rate (%)", height=400,
-        )
-        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+        # KPI cards — row 2
+        st.markdown("")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            metric_card("Total Sent", f"{df['Sent'].sum():,}", "teal")
+        with c2:
+            metric_card("Total Delivered", f"{df['Delivered'].sum():,}")
+        with c3:
+            metric_card("Total Opens", f"{df['Total Opens'].sum():,}", "pink")
+        with c4:
+            metric_card("Total Unsubs", f"{df['Unsubscribes'].sum():,}", "yellow")
 
-        # Subscriber engagement depth: total opens / unique opens
-        if chart_df["Unique Opens"].sum() > 0:
-            chart_df["Opens per Reader"] = (chart_df["Total Opens"] / chart_df["Unique Opens"]).round(2)
-            fig2 = go.Figure()
-            fig2.add_trace(go.Bar(
-                x=chart_df["Campaign Name"].str[:40],
-                y=chart_df["Unique Opens"],
-                name="Unique Opens",
-                marker=dict(color=OOP_TEAL, cornerradius=4),
+        # --- Performance Trends ---
+        chart_df = df[df["Send Date"] != ""].copy()
+        if not chart_df.empty:
+            chart_df["Send Date"] = pd.to_datetime(chart_df["Send Date"], errors="coerce")
+            chart_df = chart_df.dropna(subset=["Send Date"]).sort_values("Send Date")
+
+            st.markdown('<div class="section-header">Performance Trends</div>', unsafe_allow_html=True)
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=chart_df["Send Date"], y=chart_df["Open Rate %"],
+                name="Open Rate %", mode="lines+markers",
+                line=dict(color=OOP_TEAL, width=2.5), marker=dict(size=8),
             ))
-            fig2.add_trace(go.Scatter(
-                x=chart_df["Campaign Name"].str[:40],
-                y=chart_df["Opens per Reader"],
-                name="Opens per Reader",
-                yaxis="y2",
-                mode="lines+markers",
-                line=dict(color=OOP_YELLOW, width=2),
-                marker=dict(size=7),
+            fig.add_trace(go.Scatter(
+                x=chart_df["Send Date"], y=chart_df["Click Rate %"],
+                name="Click Rate %", mode="lines+markers",
+                line=dict(color=OOP_PINK, width=2.5), marker=dict(size=8),
             ))
-            plotly_dark_layout(fig2,
-                title="Unique Opens & Re-Read Depth",
-                height=380, xaxis_tickangle=-20,
-                yaxis=dict(title="Unique Opens", gridcolor="rgba(255,255,255,0.05)", fixedrange=True),
-                yaxis2=dict(title="Opens / Reader", overlaying="y", side="right",
+            fig.add_trace(go.Scatter(
+                x=chart_df["Send Date"], y=chart_df["CTOR %"],
+                name="CTOR %", mode="lines+markers",
+                line=dict(color=OOP_YELLOW, width=2, dash="dot"), marker=dict(size=6),
+            ))
+            plotly_dark_layout(fig,
+                title="Open Rate / Click Rate / CTOR Over Time",
+                yaxis_title="Rate (%)", height=400,
+            )
+            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+
+            # Re-read depth
+            if chart_df["Unique Opens"].sum() > 0:
+                chart_df["Opens per Reader"] = (chart_df["Total Opens"] / chart_df["Unique Opens"]).round(2)
+                fig2 = go.Figure()
+                fig2.add_trace(go.Bar(
+                    x=chart_df["Campaign Name"].str[:40], y=chart_df["Unique Opens"],
+                    name="Unique Opens", marker=dict(color=OOP_TEAL, cornerradius=4),
+                ))
+                fig2.add_trace(go.Scatter(
+                    x=chart_df["Campaign Name"].str[:40], y=chart_df["Opens per Reader"],
+                    name="Opens per Reader", yaxis="y2", mode="lines+markers",
+                    line=dict(color=OOP_YELLOW, width=2), marker=dict(size=7),
+                ))
+                plotly_dark_layout(fig2,
+                    title="Unique Opens & Re-Read Depth", height=380, xaxis_tickangle=-20,
+                    yaxis=dict(title="Unique Opens", gridcolor="rgba(255,255,255,0.05)", fixedrange=True),
+                    yaxis2=dict(title="Opens / Reader", overlaying="y", side="right",
+                                gridcolor="rgba(0,0,0,0)", fixedrange=True),
+                )
+                st.plotly_chart(fig2, use_container_width=True, config=PLOTLY_CONFIG)
+
+            # Unsub trend
+            fig3 = go.Figure()
+            fig3.add_trace(go.Bar(
+                x=chart_df["Campaign Name"].str[:40], y=chart_df["Unsubscribes"],
+                name="Unsubscribes", marker=dict(color=OOP_PINK, cornerradius=4),
+            ))
+            fig3.add_trace(go.Scatter(
+                x=chart_df["Campaign Name"].str[:40], y=chart_df["Unsub Rate %"],
+                name="Unsub Rate %", yaxis="y2", mode="lines+markers",
+                line=dict(color=OOP_YELLOW, width=2), marker=dict(size=7),
+            ))
+            plotly_dark_layout(fig3,
+                title="Unsubscribes by Campaign", height=350, xaxis_tickangle=-20,
+                yaxis=dict(title="Count", gridcolor="rgba(255,255,255,0.05)", fixedrange=True),
+                yaxis2=dict(title="Unsub Rate %", overlaying="y", side="right",
                             gridcolor="rgba(0,0,0,0)", fixedrange=True),
             )
-            st.plotly_chart(fig2, use_container_width=True, config=PLOTLY_CONFIG)
+            st.plotly_chart(fig3, use_container_width=True, config=PLOTLY_CONFIG)
 
-        # Unsubscribe trend
-        fig3 = go.Figure()
-        fig3.add_trace(go.Bar(
-            x=chart_df["Campaign Name"].str[:40],
-            y=chart_df["Unsubscribes"],
-            name="Unsubscribes",
-            marker=dict(color=OOP_PINK, cornerradius=4),
-        ))
-        fig3.add_trace(go.Scatter(
-            x=chart_df["Campaign Name"].str[:40],
-            y=chart_df["Unsub Rate %"],
-            name="Unsub Rate %",
-            yaxis="y2",
-            mode="lines+markers",
-            line=dict(color=OOP_YELLOW, width=2),
-            marker=dict(size=7),
-        ))
-        plotly_dark_layout(fig3,
-            title="Unsubscribes by Campaign",
-            height=350, xaxis_tickangle=-20,
-            yaxis=dict(title="Count", gridcolor="rgba(255,255,255,0.05)", fixedrange=True),
-            yaxis2=dict(title="Unsub Rate %", overlaying="y", side="right",
-                        gridcolor="rgba(0,0,0,0)", fixedrange=True),
-        )
-        st.plotly_chart(fig3, use_container_width=True, config=PLOTLY_CONFIG)
+        # All campaigns table
+        st.markdown('<div class="section-header">All Newsletter Campaigns</div>', unsafe_allow_html=True)
+        display_cols = [
+            "Campaign Name", "Send Date", "Sent", "Delivered", "Delivery Rate %",
+            "Unique Opens", "Open Rate %", "Unique Clicks", "Click Rate %",
+            "CTOR %", "Unsubscribes", "Unsub Rate %", "Spam Reports",
+        ]
+        available_cols = [c for c in display_cols if c in df.columns]
+        st.dataframe(df[available_cols], use_container_width=True, hide_index=True)
 
-    # --- Top Clicked URLs ---
-    click_df = data.load_newsletter_clicks()
-    if not click_df.empty:
-        st.markdown('<div class="section-header">Top Clicked Links</div>', unsafe_allow_html=True)
+        # --- Insights ---
+        st.markdown('<div class="section-header">Newsletter Insights</div>', unsafe_allow_html=True)
+        nstats = []
 
-        # Filter selector
-        nl_campaigns = ["All"] + sorted(click_df["Campaign Name"].unique().tolist())
-        sel_nl = st.selectbox("Filter by Campaign", nl_campaigns,
-                              label_visibility="collapsed", key="nl_click_campaign")
-        filtered_clicks = click_df if sel_nl == "All" else click_df[click_df["Campaign Name"] == sel_nl]
-
-        if not filtered_clicks.empty:
-            top = filtered_clicks.nlargest(15, "Unique Clicks").copy()
-            top["URL (short)"] = top["URL"].str[:60]
-
-            fig4 = go.Figure(go.Bar(
-                x=top["Unique Clicks"], y=top["URL (short)"],
-                orientation="h",
-                marker=dict(
-                    color=top["Unique Clicks"],
-                    colorscale=[[0, OOP_NAVY], [0.5, OOP_TEAL], [1, OOP_PINK]],
-                    cornerradius=4,
-                ),
-            ))
-            plotly_dark_layout(fig4,
-                title="Top URLs by Unique Clicks",
-                height=480,
-                yaxis=dict(autorange="reversed", gridcolor="rgba(255,255,255,0.03)", fixedrange=True),
-            )
-            st.plotly_chart(fig4, use_container_width=True, config=PLOTLY_CONFIG)
-
-        st.dataframe(filtered_clicks, use_container_width=True, hide_index=True)
-
-    # --- All campaigns table ---
-    st.markdown('<div class="section-header">All Newsletter Campaigns</div>', unsafe_allow_html=True)
-    display_cols = [
-        "Campaign Name", "Send Date", "Sent", "Delivered", "Delivery Rate %",
-        "Unique Opens", "Open Rate %", "Unique Clicks", "Click Rate %",
-        "CTOR %", "Unsubscribes", "Unsub Rate %", "Spam Reports",
-    ]
-    available_cols = [c for c in display_cols if c in df.columns]
-    st.dataframe(df[available_cols], use_container_width=True, hide_index=True)
-
-    # --- Interesting Stats ---
-    st.markdown('<div class="section-header">Newsletter Insights</div>', unsafe_allow_html=True)
-
-    nstats = []
-
-    # Best/worst performers
-    best_open = df.loc[df["Open Rate %"].idxmax()]
-    nstats.append(
-        f"<b>Highest open rate:</b> {best_open['Campaign Name'][:55]} "
-        f"at <b>{best_open['Open Rate %']:.1f}%</b>"
-    )
-    worst_open = df.loc[df["Open Rate %"].idxmin()]
-    nstats.append(
-        f"<b>Lowest open rate:</b> {worst_open['Campaign Name'][:55]} "
-        f"at <b>{worst_open['Open Rate %']:.1f}%</b>"
-    )
-    best_click = df.loc[df["Click Rate %"].idxmax()]
-    nstats.append(
-        f"<b>Highest click rate:</b> {best_click['Campaign Name'][:55]} "
-        f"at <b>{best_click['Click Rate %']:.1f}%</b> "
-        f"(CTOR: {best_click['CTOR %']:.1f}%)"
-    )
-
-    # Delivery health
-    total_sent = df["Sent"].sum()
-    total_delivered = df["Delivered"].sum()
-    overall_delivery = round(total_delivered / total_sent * 100, 2) if total_sent > 0 else 0
-    nstats.append(
-        f"<b>Delivery health:</b> {total_delivered:,} / {total_sent:,} delivered "
-        f"(<b>{overall_delivery}%</b> overall)"
-    )
-
-    # Engagement depth
-    if df["Unique Opens"].sum() > 0:
-        avg_reads = df["Total Opens"].sum() / df["Unique Opens"].sum()
+        best_open = df.loc[df["Open Rate %"].idxmax()]
         nstats.append(
-            f"<b>Avg reads per opener:</b> {avg_reads:.2f}x "
-            f"(readers re-open newsletters ~{avg_reads - 1:.1f} extra times on average)"
+            f"<b>Highest open rate:</b> {best_open['Campaign Name'][:55]} "
+            f"at <b>{best_open['Open Rate %']:.1f}%</b>"
+        )
+        worst_open = df.loc[df["Open Rate %"].idxmin()]
+        nstats.append(
+            f"<b>Lowest open rate:</b> {worst_open['Campaign Name'][:55]} "
+            f"at <b>{worst_open['Open Rate %']:.1f}%</b>"
+        )
+        best_click = df.loc[df["Click Rate %"].idxmax()]
+        nstats.append(
+            f"<b>Highest click rate:</b> {best_click['Campaign Name'][:55]} "
+            f"at <b>{best_click['Click Rate %']:.1f}%</b> "
+            f"(CTOR: {best_click['CTOR %']:.1f}%)"
         )
 
-    # Most unsubscribes
-    most_unsub = df.loc[df["Unsubscribes"].idxmax()]
-    nstats.append(
-        f"<b>Most unsubscribes:</b> {most_unsub['Campaign Name'][:55]} "
-        f"({int(most_unsub['Unsubscribes'])} unsubs, {most_unsub['Unsub Rate %']:.2f}%)"
-    )
+        total_sent = df["Sent"].sum()
+        total_delivered = df["Delivered"].sum()
+        overall_delivery = round(total_delivered / total_sent * 100, 2) if total_sent > 0 else 0
+        nstats.append(
+            f"<b>Delivery health:</b> {total_delivered:,} / {total_sent:,} delivered "
+            f"(<b>{overall_delivery}%</b> overall)"
+        )
 
-    # Total unsubs & spam
-    nstats.append(
-        f"<b>Total unsubscribes:</b> {df['Unsubscribes'].sum():,} across {len(df)} newsletters "
-        f"&bull; Spam reports: {df['Spam Reports'].sum()}"
-    )
-
-    # Subject line analysis
-    if "Subject Line" in df.columns and len(df) >= 3:
-        df["_slen"] = df["Subject Line"].str.len()
-        short = df[df["_slen"] <= df["_slen"].median()]
-        long = df[df["_slen"] > df["_slen"].median()]
-        if not short.empty and not long.empty:
-            winner = "Shorter" if short["Open Rate %"].mean() > long["Open Rate %"].mean() else "Longer"
+        if df["Unique Opens"].sum() > 0:
+            avg_reads = df["Total Opens"].sum() / df["Unique Opens"].sum()
             nstats.append(
-                f"<b>Subject line length:</b> {winner} subjects perform better "
-                f"(short: {short['Open Rate %'].mean():.1f}%, long: {long['Open Rate %'].mean():.1f}%, "
-                f"median: {df['_slen'].median():.0f} chars)"
+                f"<b>Avg reads per opener:</b> {avg_reads:.2f}x "
+                f"(readers re-open newsletters ~{avg_reads - 1:.1f} extra times on average)"
             )
 
-    # Day of week
-    if not chart_df.empty and "Send Date" in chart_df.columns and len(chart_df) >= 3:
-        chart_df["_dow"] = chart_df["Send Date"].dt.day_name()
-        dow_stats = chart_df.groupby("_dow")["Open Rate %"].mean()
-        if len(dow_stats) > 1:
-            best_day = dow_stats.idxmax()
-            nstats.append(
-                f"<b>Best send day:</b> {best_day} "
-                f"(avg open rate: {dow_stats[best_day]:.1f}%)"
-            )
+        most_unsub = df.loc[df["Unsubscribes"].idxmax()]
+        nstats.append(
+            f"<b>Most unsubscribes:</b> {most_unsub['Campaign Name'][:55]} "
+            f"({int(most_unsub['Unsubscribes'])} unsubs, {most_unsub['Unsub Rate %']:.2f}%)"
+        )
+        nstats.append(
+            f"<b>Total unsubscribes:</b> {df['Unsubscribes'].sum():,} across {len(df)} newsletters "
+            f"&bull; Spam reports: {df['Spam Reports'].sum()}"
+        )
 
-    for s in nstats:
-        st.markdown(f'<div class="stat-item">{s}</div>', unsafe_allow_html=True)
+        if "Subject Line" in df.columns and len(df) >= 3:
+            df["_slen"] = df["Subject Line"].str.len()
+            short = df[df["_slen"] <= df["_slen"].median()]
+            long = df[df["_slen"] > df["_slen"].median()]
+            if not short.empty and not long.empty:
+                winner = "Shorter" if short["Open Rate %"].mean() > long["Open Rate %"].mean() else "Longer"
+                nstats.append(
+                    f"<b>Subject line length:</b> {winner} subjects perform better "
+                    f"(short: {short['Open Rate %'].mean():.1f}%, long: {long['Open Rate %'].mean():.1f}%, "
+                    f"median: {df['_slen'].median():.0f} chars)"
+                )
+
+        for s in nstats:
+            st.markdown(f'<div class="stat-item">{s}</div>', unsafe_allow_html=True)
+
+    else:
+        # ===================== SINGLE CAMPAIGN VIEW =====================
+        row = df[df["Campaign Name"] == selected_campaign].iloc[0]
+
+        # KPI cards
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            metric_card("Sent", f"{int(row['Sent']):,}")
+        with c2:
+            metric_card("Open Rate", f"{row['Open Rate %']:.1f}%", "teal")
+        with c3:
+            metric_card("Click Rate", f"{row['Click Rate %']:.1f}%", "pink")
+        with c4:
+            metric_card("CTOR", f"{row['CTOR %']:.1f}%", "yellow")
+        with c5:
+            metric_card("Unsub Rate", f"{row['Unsub Rate %']:.2f}%")
+
+        st.markdown("")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            metric_card("Delivered", f"{int(row['Delivered']):,}", "teal")
+        with c2:
+            metric_card("Delivery Rate", f"{row['Delivery Rate %']:.1f}%")
+        with c3:
+            metric_card("Unique Opens", f"{int(row['Unique Opens']):,}", "pink")
+        with c4:
+            metric_card("Total Opens", f"{int(row['Total Opens']):,}")
+        with c5:
+            reads_per = round(row["Total Opens"] / row["Unique Opens"], 2) if row["Unique Opens"] > 0 else 0
+            metric_card("Opens / Reader", f"{reads_per}x", "yellow")
+
+        st.markdown("")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            metric_card("Unique Clicks", f"{int(row['Unique Clicks']):,}", "teal")
+        with c2:
+            metric_card("Unsubscribes", f"{int(row['Unsubscribes']):,}", "pink")
+        with c3:
+            metric_card("Spam Reports", f"{int(row['Spam Reports']):,}")
+
+        # Engagement pie chart
+        st.markdown("")
+        opened_not_clicked = int(row["Unique Opens"]) - int(row["Unique Clicks"])
+        not_opened = int(row["Delivered"]) - int(row["Unique Opens"])
+        not_delivered = int(row["Sent"]) - int(row["Delivered"])
+        pie_labels = ["Clicked", "Opened Only", "Not Opened", "Not Delivered"]
+        pie_values = [int(row["Unique Clicks"]), max(0, opened_not_clicked),
+                      max(0, not_opened), max(0, not_delivered)]
+        if sum(pie_values) > 0:
+            fig = go.Figure(data=[go.Pie(
+                labels=pie_labels, values=pie_values,
+                marker=dict(colors=[OOP_TEAL, OOP_PINK, OOP_YELLOW, "#555"]),
+                hole=0.45, textinfo="percent+label", textfont=dict(size=13),
+            )])
+            plotly_dark_layout(fig, title="Engagement Breakdown", height=380)
+            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+
+        # Subject line and send date info
+        if row.get("Subject Line"):
+            st.markdown(f'<div class="stat-item"><b>Subject Line:</b> {row["Subject Line"]}</div>',
+                        unsafe_allow_html=True)
+        if row.get("Send Date"):
+            st.markdown(f'<div class="stat-item"><b>Send Date:</b> {row["Send Date"]}</div>',
+                        unsafe_allow_html=True)
+
+        # Click detail for this campaign
+        if not click_df.empty:
+            campaign_clicks = click_df[click_df["Campaign Name"] == selected_campaign].copy()
+            if not campaign_clicks.empty:
+                campaign_clicks = campaign_clicks.sort_values("Unique Clicks", ascending=False)
+
+                st.markdown('<div class="section-header">Link Performance</div>',
+                            unsafe_allow_html=True)
+
+                top = campaign_clicks.head(15).copy()
+                top["URL (short)"] = top["URL"].str[:65]
+                fig_c = go.Figure(go.Bar(
+                    x=top["Unique Clicks"], y=top["URL (short)"],
+                    orientation="h",
+                    marker=dict(
+                        color=top["Unique Clicks"],
+                        colorscale=[[0, OOP_NAVY], [0.5, OOP_TEAL], [1, OOP_PINK]],
+                        cornerradius=4,
+                    ),
+                ))
+                plotly_dark_layout(fig_c,
+                    title="Links by Unique Clicks", height=420,
+                    yaxis=dict(autorange="reversed", gridcolor="rgba(255,255,255,0.03)",
+                               fixedrange=True),
+                )
+                st.plotly_chart(fig_c, use_container_width=True, config=PLOTLY_CONFIG)
+
+                st.dataframe(campaign_clicks[["URL", "Unique Clicks", "Total Clicks"]],
+                             use_container_width=True, hide_index=True)
+            else:
+                st.info("No click data for this campaign.")
+
+    # --- Link Search (always visible) ---
+    st.markdown('<div class="section-header">Link Search</div>', unsafe_allow_html=True)
+    st.caption("Search for a sponsor link or any URL to see how it performed across newsletters")
+    link_query = st.text_input("Search URL", placeholder="e.g. ursahealth.com or sponsor-name",
+                               key="nl_link_search", label_visibility="collapsed")
+    if link_query and not click_df.empty:
+        matches = click_df[click_df["URL"].str.contains(link_query, case=False, na=False)].copy()
+        if not matches.empty:
+            matches = matches.sort_values("Unique Clicks", ascending=False)
+            total_unique = matches["Unique Clicks"].sum()
+            total_all = matches["Total Clicks"].sum()
+            num_campaigns = matches["Campaign Name"].nunique()
+
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                metric_card("Total Unique Clicks", f"{total_unique:,}", "teal")
+            with c2:
+                metric_card("Total Clicks", f"{total_all:,}", "pink")
+            with c3:
+                metric_card("Appeared In", f"{num_campaigns} newsletter{'s' if num_campaigns != 1 else ''}")
+
+            st.dataframe(matches[["Campaign Name", "URL", "Unique Clicks", "Total Clicks"]],
+                         use_container_width=True, hide_index=True)
+        else:
+            st.info(f"No links matching '{link_query}' found.")
 
 
 # ============================================================
